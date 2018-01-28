@@ -1,0 +1,122 @@
+* Introduction
+This file contains the complete source code of DLib, a simple standard library companion for the C language. It is written in pure C99 and intends to serve as a natural extension of the standard library while also showing some tips and tricks for practical implementation of C programs in 2018.
+
+The goal of DLib is to both create a simple, understandable implementation of essential data structures and algorithms and to provide a basic introduction to the C language itself by building up these features from the basic to the complex.
+
+** Assumptions
+In reading this book, I assume that you have the very basic knowledge you'd encounter in a CS1 course of *some* kind. That is, I assume you understand the concept of variables, functions, etc and that you'll be able to understand that printf("something\n") is a print statement which prints to the screen, even if your introduction was in, say. Java.
+
+** Important Notes
+
+For the purposes of understanding, the files which make up DLib may be listed out of order. That is, something from the middle of a file may come before the start if I find that's the more natural way to describe it. When this file is converted into a runnable form, the file will be in the correct order and run fine, but the code snippets themselves cannot be copied out of this document in order and assembled into running code.
+* Our Basic Data Type
+** The One Big Union
+The first major hurdle when it comes to creating data structures in C is the fact that the language does not feature generics: while in most other languages, you are allowed to say that you do not care what is contained within a data structure, just make it work, C requires you to explicitly state what type is being held at all times. To get around this, we will define a "value" type making use of C's unions. Unions are an unusual concept which you likely haven't encountered before: a union is a basic data type which contains one of any number of other data types. So a union may encompass ints and characters, and a value of the union type may be an int *or* a union, but not both at the same time. This means that in our data structures, we can take a value of any type and store it without worry, because our data structures don't care what the actual contents are.
+#+name value
+#+begin_src c :exports none
+
+  typedef union {
+      int i;
+      long long l;
+      float f;
+      double d;
+      char c;
+      char *s;
+      void *p;
+  }value;
+
+#+end_src
+This one union encapsulates every "normal" type you're likely to encounter in C, save structures. Sadly there's no way to accommodate those structures because the size of a structure in C can be arbitrarily large, they need to be included by pointer. This isn't so bad, however, because we usually want to store these by pointer anyway, otherwise it would cause problems to adjust our data structures as we need. In fact, in the vast majority of programming languages in use today, *all* data is accessed through pointers. What a pointer is in detail is not important right now and will be covered later, for now you need only know that a pointer is a way for us to be able to contain arbitrarily large data types within our fixed size data structures. There are two of them in our union: a char* and a void*. A void pointer is allowed to point to anything, however we will be using a special trick for strings, which will have the type char*.
+** The Type Declaration
+While the union covers all of the actual data, there are a lot of situations where we actually want to access the data inside of it. Because the C language doesn't keep track of this information for us, we need a way of annotating the types to make sure that we're working with the correct types. We do this with an enum, which is just a way of naming unique numbers. We could also use a string if we wanted, but because we have a fixed number of possible types, the enum is more efficient because it compiles down to numbers. Beyond the actual types, we define an error type which will be used to signal errors.
+#+name type_enum
+#+begin_src c exports:none :noweb yes
+  <<value>>
+
+  typedef enum {
+      TYPE_INT,
+      TYPE_LONGLONG,
+      TYPE_FLOAT,
+      TYPE_DOUBLE,
+      TYPE_CHAR,
+      TYPE_STRING,
+      TYPE_POINTER,
+      TYPE_ERROR
+  }type;
+#+end_src
+
+These two will be used together in every data structure and most algorithms going forward. In order to make using these more convenient, we'll have functions to convert to and from values:
+#+name value_helpers
+#+begin_src c :exports none ::noweb yes
+  <<type_enum>>
+  value val_of_int(int i);
+  int int_of_val(value v);
+
+  value val_of_longlong(long long ll);
+  long long longlong_of_val(value v);
+
+  value val_of_float(float f);
+  float float_of_val(value v);
+
+  value val_of_double(double d);
+  double double_of_val(value v);
+
+  value val_of_char(char c);
+  char char_of_val(value v);
+
+  value val_of_string(char *s);
+  char *string_of_val(value v);
+
+  value val_of_ptr(void *p);
+  void *ptr_of_val(value v);
+#+end_src
+
+This is all well and good for when a value is the correct type, but what happens if we try to, say, pull an int from a string? The most sensible thing right now is to just crash: it means that whoever has written the program has made some fundamental error somewhere, or there is an errant memory access corrupting the type of a value. In either case, the best thing is to send the programmer to the debugger.
+
+* Our First Data Structure
+Now that we have a value type, we're able to create our first data structure: the vector. This will probably already be familiar to you: it is an array which is capable of resizing itself when there is not enough space for a new element. Our version will also automatically shrink itself when it gets too small and perform bounds checking. Any invalid work on the array will result in an error value being returned, as defined further up.
+
+#+name vector_iface
+#+begin_src c :exports none
+  typedef struct {
+      int capacity;
+      int minimum_capacity;
+      int used;
+      value *values;
+      type type;
+  }vect;
+
+  vect create_vect(type t, int base_capacity);
+  vect vect_of_array(type t, void *array, size_t length);
+
+  value vect_get(vect v, size_t index);
+  value vect_set(vect v, size_t index, value val);
+
+  value vect_add(vect v, size_t index, value val);
+
+  value vect_remove(vect v, size_t index, value val);
+
+  value vect_find(vect v, value val);
+#+end_src
+
+#+name include_guards
+
+#+begin_src c :exports none
+
+#ifndef DLIB_H
+#define DLIB_H
+#include <stdbool.h>
+#include <stdlib.h>
+
+
+typedef struct {
+    value v;
+    bool null;
+}option;
+
+
+struct bst_struct;
+typedef struct bst_struct *bst;
+
+#endif
+#+end_src
